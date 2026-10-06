@@ -8,7 +8,7 @@
 - 最初の1ビットは色（A=0／B=1）
 - 次の4ビットは「連続する個数−1」
 
-公開URL: 未公開
+公開URL: https://tkamiya-ssalesio.github.io/rle-simulator/
 
 ## できること
 
