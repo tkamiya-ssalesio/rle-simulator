@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ランレングス圧縮シミュレータ</title>
+<meta name="description" content="16×16 のドット絵を塗って，1行ごとのランレングス圧縮のビット列とデータ量を確かめる授業用のシミュレータ．">
+<style>
+  :root {
+    --paper: #F4F6F0;
+    --sheet: #FFFFFF;
+    --leaf: #2E7D5B;
+    --leaf-deep: #1D5B41;
+    --leaf-soft: #E3F1E8;
+    --leaf-line: #D2E4D9;
+    --ink: #1F2A24;
+    --ink-soft: #5E6C65;
+    --pen: #FFE27A;
+    --pen-soft: #FFF4C7;
+    --shu: #BD472C;
+    --shu-soft: #FBE8E2;
+    --sky: #2F5D8A;
+
+    --font-body: "BIZ UDPGothic", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "Noto Sans JP", "Noto Sans CJK JP", sans-serif;
+    --font-code: "BIZ UDGothic", "Osaka-Mono", "MS Gothic", "Noto Sans Mono CJK JP", ui-monospace, "Menlo", "Consolas", monospace;
+
+    --step--1: 0.8125rem;
+    --step-0: 1rem;
+    --step-1: 1.1875rem;
+    --step-3: 2rem;
+    --step-4: 2.5rem;
+    --radius: 10px;
+    --gutter: clamp(1rem, 4vw, 2.5rem);
+    --shadow: 0 1px 2px rgba(31, 42, 36, 0.05), 0 10px 30px rgba(31, 42, 36, 0.05);
+
+    --cellA: #E3F1E8;
+    --cellB: #1D5B41;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: var(--step-0); line-height: 1.8; }
+  :focus-visible { outline: 3px solid var(--leaf); outline-offset: 2px; }
+  .page { max-width: 72rem; margin: 0 auto; padding: 0 var(--gutter) 4rem; }
+
+  .masthead { display: grid; gap: 0.6rem; padding: 2.5rem 0 1.5rem; }
+  .kicker { margin: 0; font-size: var(--step--1); letter-spacing: 0.1em; color: var(--leaf-deep); }
+  h1 { margin: 0; font-weight: 700; font-size: clamp(var(--step-3), 5vw, var(--step-4)); line-height: 1.3; letter-spacing: 0.02em; word-break: keep-all; overflow-wrap: anywhere; }
+  .marker { background: linear-gradient(transparent 62%, var(--pen) 62%); padding: 0 0.1em; }
+  .lede { margin: 0; max-width: 40em; color: var(--ink-soft); }
+
+  .panel { background: var(--sheet); border-radius: 16px; box-shadow: var(--shadow); padding: clamp(1rem, 3vw, 2.25rem); display: grid; gap: 1.25rem; }
+  .panel > * { min-width: 0; }
+  h2 { margin: 0; font-size: var(--step-1); }
+  .small-label { font-size: var(--step--1); color: var(--ink-soft); margin-right: 0.2rem; }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+  .chip { appearance: none; font: inherit; font-size: var(--step--1); background: var(--paper); color: var(--ink); border: 0; border-radius: 999px; padding: 0.3rem 0.85rem; cursor: pointer; min-height: 2.2rem; }
+  .chip:hover { background: var(--pen); }
+  .chip[aria-pressed="true"] { background: var(--leaf-deep); color: var(--sheet); font-weight: 700; }
+  .bitnote { margin: 0; font-size: var(--step--1); color: var(--ink-soft); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 26rem) minmax(0, 1fr); gap: 1.5rem 2rem; align-items: start; }
+  @media (max-width: 70rem) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font-size: var(--step--1); color: var(--ink-soft); margin-bottom: 0.4rem; align-items: center; }
+  .sw { display: inline-block; width: 1rem; height: 1rem; border-radius: 3px; border: 1px solid rgba(0,0,0,0.35); vertical-align: -0.2rem; margin-right: 0.3rem; }
+  .sw.a { background: var(--cellA); } .sw.b { background: var(--cellB); }
+
+  .boardwrap { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); gap: 0 0.3rem; }
+  .rownums { display: grid; grid-template-rows: repeat(16, 1fr); font-family: var(--font-code); font-size: 0.7rem; color: var(--ink-soft); text-align: right; line-height: 1; }
+  .rownums span { display: flex; align-items: center; justify-content: flex-end; }
+  .board { display: grid; grid-template-columns: repeat(16, 1fr); grid-template-rows: repeat(16, 1fr); aspect-ratio: 1; touch-action: none; user-select: none; -webkit-user-select: none; border: 2px solid var(--ink); background: var(--ink); gap: 1px; cursor: crosshair; }
+  .cell { background: var(--cellA); }
+  .cell.b { background: var(--cellB); }
+
+  .rows { line-height: 1.7; display: grid; gap: 3px; font-family: var(--font-code); font-size: 0.8rem; }
+  .rows-head, .rrow { display: grid; grid-template-columns: 2rem 9rem minmax(0, 1fr) 11.5rem; gap: 0.2rem 0.6rem; align-items: center; padding: 0.15rem 0.5rem; border-radius: 6px; }
+  .rows-head { font-family: var(--font-body); font-size: var(--step--1); color: var(--ink-soft); }
+  .rrow { background: var(--paper); }
+  .rrow.shrunk { background: var(--leaf-soft); }
+  .rrow.grew { background: var(--shu-soft); }
+  .rrow .no { color: var(--ink-soft); text-align: right; }
+  .rrow .code { word-break: normal; overflow-wrap: normal; line-height: 1.5; }
+  .code span { white-space: nowrap; }
+  .code .first { background: var(--pen); border-radius: 3px; padding: 0 2px; }
+  .code .sep { color: var(--ink-soft); margin: 0 0.15rem; }
+  .rrow .cnt { text-align: right; white-space: nowrap; }
+  .rrow.grew .cnt { color: var(--shu); font-weight: 700; }
+  .rrow .tag { font-family: var(--font-body); font-size: 0.72rem; margin-left: 0.3rem; background: var(--shu); color: #fff; border-radius: 999px; padding: 0 0.45rem; }
+  @media (max-width: 52rem) {
+    .rows-head { display: none; }
+    .rrow { grid-template-columns: 1.6rem minmax(0, 1fr) auto; }
+    .rrow .code { grid-column: 2 / 4; }
+  }
+  body.hide .rrow { grid-template-columns: 2rem 9rem minmax(0, 1fr); }
+  @media (max-width: 52rem) { body.hide .rrow { grid-template-columns: 1.6rem minmax(0, 1fr); } body.hide .rrow .code { grid-column: 2; } }
+  body.hide .rows-head { grid-template-columns: 2rem 9rem minmax(0, 1fr); }
+  body.hide .num-only { display: none !important; }
+
+  .total { display: grid; gap: 0.3rem; background: var(--pen-soft); border-radius: 12px; padding: 0.9rem 1.1rem; }
+  .total .line { display: flex; flex-wrap: wrap; gap: 0.2rem 1.5rem; align-items: baseline; }
+  .total .big { font-family: var(--font-code); font-weight: 700; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+  .total .formula { font-size: var(--step--1); color: var(--ink-soft); }
+  .total .grewcount { color: var(--shu); font-weight: 700; }
+
+  details { background: var(--paper); border-radius: 12px; padding: 0.6rem 1rem; }
+  summary { cursor: pointer; font-weight: 700; min-height: 2rem; }
+  details ol { margin: 0.5rem 0 0.2rem; padding-left: 1.4rem; }
+  details li { margin-bottom: 0.3rem; }
+  .code-inline { font-family: var(--font-code); background: var(--sheet); border-radius: 4px; padding: 0 0.3rem; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <p class="kicker">情報Ⅰ　情報のデジタル表現</p>
+    <h1><span class="marker">ランレングス圧縮シミュレータ</span></h1>
+    <p class="lede">16×16 のドット絵を塗ると，1行ごとに圧縮したビット列が出ます．</p>
+  </header>
+
+  <main class="panel" id="panel">
+    <div class="presets" id="presets">
+      <span class="small-label">見本：</span>
+    </div>
+
+    <div class="layout">
+      <section aria-label="盤面">
+        <div class="legend">
+          <span><i class="sw a"></i>A（0）</span>
+          <span><i class="sw b"></i>B（1）</span>
+          <span>マスをタップ・なぞって塗る</span>
+        </div>
+        <div class="boardwrap">
+          <div class="rownums" id="rownums" aria-hidden="true"></div>
+          <div class="board" id="board" role="img" aria-label="16×16 のドット絵．タップやドラッグで A と B を塗り分ける"></div>
+        </div>
+      </section>
+
+      <section aria-label="行ごとの圧縮" style="display:grid;gap:1rem">
+        <p class="bitnote">4ビットで表せるのは 0〜15．だから「個数−1」で書く（16個連続は 15＝<span class="code-inline">1111</span>）．</p>
+        <div class="rows" id="rows"></div>
+        <div class="total num-only" id="total"></div>
+      </section>
+    </div>
+
+    <details>
+      <summary>圧縮の約束</summary>
+      <ol>
+        <li>1行（16ドット）ごとに圧縮する．最初の1ビットは色で，<b>A＝0，B＝1</b>．</li>
+        <li>続く4ビットは「連続する個数−1」を2進数で書いたもの．連続（ラン）ごとに繰り返す．</li>
+        <li>個数をそのまま書くと 16 は <span class="code-inline">10000</span> の5ビットになり，約束が壊れる（理由は行表示の上の注記のとおり）．</li>
+        <li>連続は1行16ドット以内なので，17個以上は起きない．</li>
+      </ol>
+      <p style="margin:0.4rem 0 0;font-size:var(--step--1);color:var(--ink-soft)">ランが2つ目以降のとき，色は前のランと交互になるので書かない．最初の1ビットだけを書く．</p>
+    </details>
+  </main>
+</div>
+
+<script>
+"use strict";
+(function () {
+  var N = 16;
+
+  // ---------- 純粋関数（DOM に依存しない．node で検算できる） ----------
+  function compressRow(bits) {
+    var runs = [];
+    for (var i = 0; i < bits.length; i++) {
+      var v = bits[i] ? 1 : 0;
+      if (runs.length && runs[runs.length - 1].value === v) runs[runs.length - 1].count++;
+      else runs.push({ value: v, count: 1 });
+    }
+    var parts = [String(runs[0].value)];
+    runs.forEach(function (r) {
+      var s = (r.count - 1).toString(2);
+      while (s.length < 4) s = "0" + s;
+      parts.push(s);
+    });
+    var code = parts.join("");
+    return { runs: runs, parts: parts, code: code, length: code.length };
+  }
+  function rowLength(bits) { return 1 + 4 * compressRow(bits).runs.length; }
+  function totalLength(grid) { return grid.reduce(function (s, r) { return s + rowLength(r); }, 0); }
+  function ratio(grid) { return totalLength(grid) * 100 / (N * N); }
+  // 割り切れる値（小数第3位まで）はそのまま．割り切れなければ小数第3位まで．
+  function formatRatio(grid) {
+    var t = totalLength(grid);
+    var v = t * 25 / 64;
+    if (t % 8 === 0) return { text: String(v), exact: true };
+    return { text: v.toFixed(3), exact: false };
+  }
+  function build(rowFn) {
+    var g = [];
+    for (var y = 0; y < N; y++) g.push(rowFn(y));
+    return g;
+  }
+  function fromRuns(spec) { // [[値,個数],...] -> 16ビット
+    var out = [];
+    spec.forEach(function (p) { for (var i = 0; i < p[1]; i++) out.push(p[0]); });
+    return out;
+  }
+  function inRange(y, a, b) { return y >= a - 1 && y <= b - 1; }
+
+  var PRESETS = {
+    ex13: build(function (y) {
+      if (inRange(y, 1, 3)) return fromRuns([[1, 16]]);
+      if (inRange(y, 4, 5)) return fromRuns([[1, 3], [0, 3], [1, 4], [0, 3], [1, 3]]);
+      return fromRuns([[0, 6], [1, 4], [0, 6]]);
+    }),
+    kakunin10: build(function (y) {
+      if (inRange(y, 4, 6) || inRange(y, 10, 16)) return fromRuns([[1, 3], [0, 13]]);
+      return fromRuns([[1, 16]]);
+    }),
+    checker: build(function (y) {
+      var r = [];
+      for (var x = 0; x < N; x++) r.push((x + y) % 2);
+      return r;
+    }),
+    stripes: build(function (y) { return fromRuns([[y % 2, 16]]); }),
+    allA: build(function () { return fromRuns([[0, 16]]); }),
+    clear: build(function () { return fromRuns([[0, 16]]); })
+  };
+
+  window.RLE = {
+    compressRow: compressRow, rowLength: rowLength, totalLength: totalLength,
+    ratio: ratio, formatRatio: formatRatio, PRESETS: PRESETS, SIZE: N
+  };
+
+  if (typeof document === "undefined") return;
+
+  // ---------- 画面 ----------
+  var params = new URLSearchParams(location.search);
+  var hide = params.get("hide") === "1";
+  if (hide) document.body.classList.add("hide");
+
+  var grid = PRESETS.clear.map(function (r) { return r.slice(); });
+  var boardEl = document.getElementById("board");
+  var rowsEl = document.getElementById("rows");
+  var totalEl = document.getElementById("total");
+  var cells = [];
+  var i, x, y;
+
+  var nums = document.getElementById("rownums");
+  for (i = 1; i <= N; i++) { var sp = document.createElement("span"); sp.textContent = i; nums.appendChild(sp); }
+  for (i = 0; i < N * N; i++) { var c = document.createElement("div"); c.className = "cell"; boardEl.appendChild(c); cells.push(c); }
+
+  // 行の要素（先に作っておき，更新時は中身だけ書き換える）
+  var rowEls = [];
+  var head = document.createElement("div");
+  head.className = "rows-head";
+  head.innerHTML = '<span>行</span><span>元（16ビット）</span><span>圧縮後</span><span class="num-only">ビット数</span>';
+  rowsEl.appendChild(head);
+  for (y = 0; y < N; y++) {
+    var r = document.createElement("div");
+    r.className = "rrow";
+    r.innerHTML = '<span class="no">' + (y + 1) + '</span><span class="raw"></span><span class="code"></span><span class="cnt num-only"></span>';
+    rowsEl.appendChild(r);
+    rowEls.push(r);
+  }
+
+  var currentPreset = "clear", presetBtns = {};
+  function samePreset(key) {
+    var g = PRESETS[key];
+    for (var a = 0; a < N; a++) for (var b = 0; b < N; b++) if (g[a][b] !== grid[a][b]) return false;
+    return true;
+  }
+  function updatePressed() {
+    if (currentPreset && !samePreset(currentPreset)) currentPreset = null;
+    Object.keys(presetBtns).forEach(function (k) { presetBtns[k].setAttribute("aria-pressed", String(k === currentPreset)); });
+  }
+
+  function render() {
+    var total = 0, grew = 0;
+    for (var yy = 0; yy < N; yy++) {
+      for (var xx = 0; xx < N; xx++) cells[yy * N + xx].className = grid[yy][xx] ? "cell b" : "cell";
+      var res = compressRow(grid[yy]);
+      var el = rowEls[yy];
+      el.querySelector(".raw").textContent = grid[yy].join("");
+      var codeEl = el.querySelector(".code");
+      codeEl.textContent = "";
+      res.parts.forEach(function (p, k) {
+        if (k > 0) { var s = document.createElement("span"); s.className = "sep"; s.textContent = "|"; codeEl.appendChild(s); codeEl.appendChild(document.createElement("wbr")); }
+        var t = document.createElement("span");
+        if (k === 0) t.className = "first";
+        t.textContent = p;
+        codeEl.appendChild(t);
+      });
+      var n = res.length;
+      total += n;
+      var isGrew = n > N;
+      if (isGrew) grew++;
+      el.classList.toggle("grew", isGrew && !hide);
+      el.classList.toggle("shrunk", n < N && !hide);
+      el.querySelector(".cnt").innerHTML = N + "ビット→" + n + "ビット" + (isGrew ? '<span class="tag">増えた</span>' : "");
+    }
+    var fr = formatRatio(grid);
+    totalEl.innerHTML =
+      '<div class="line"><span>圧縮前</span><span class="big">' + (N * N) + ' ビット</span></div>' +
+      '<div class="line"><span>圧縮後</span><span class="big">' + total + ' ビット</span></div>' +
+      '<div class="line"><span>圧縮率</span><span class="big">' + (fr.exact ? "" : "≒ ") + fr.text + ' ％</span></div>' +
+      '<div class="line"><span class="formula">圧縮率（％）＝ 圧縮後 ÷ 圧縮前 × 100</span></div>' +
+      (grew ? '<div class="line"><span class="grewcount">元より増えた行：' + grew + ' 行</span></div>' : '<div class="line"><span class="formula">元より増えた行：0 行</span></div>');
+    updatePressed();
+  }
+
+  // ---------- 塗る（最初に触れたマスの反転値でなぞり全体を塗る） ----------
+  var painting = false, paintVal = 0, lastCx = -1, lastCy = -1;
+  function cellAt(e) {
+    var rc = boardEl.getBoundingClientRect();
+    var cx = Math.floor((e.clientX - rc.left) / rc.width * N);
+    var cy = Math.floor((e.clientY - rc.top) / rc.height * N);
+    cx = Math.max(0, Math.min(N - 1, cx)); cy = Math.max(0, Math.min(N - 1, cy));
+    return [cx, cy];
+  }
+  function inside(e) {
+    var rc = boardEl.getBoundingClientRect();
+    return e.clientX >= rc.left && e.clientX < rc.right && e.clientY >= rc.top && e.clientY < rc.bottom;
+  }
+  // 前のマスから今のマスまで，間を埋めて塗る（速くなぞっても欠けない）
+  function paintTo(cx, cy) {
+    var x0 = lastCx < 0 ? cx : lastCx, y0 = lastCy < 0 ? cy : lastCy;
+    var steps = Math.max(Math.abs(cx - x0), Math.abs(cy - y0)), changed = false;
+    for (var k = 0; k <= steps; k++) {
+      var px = steps ? Math.round(x0 + (cx - x0) * k / steps) : cx;
+      var py = steps ? Math.round(y0 + (cy - y0) * k / steps) : cy;
+      if (grid[py][px] !== paintVal) { grid[py][px] = paintVal; changed = true; }
+    }
+    lastCx = cx; lastCy = cy;
+    if (changed) render();
+  }
+  boardEl.addEventListener("pointerdown", function (e) {
+    if (!inside(e)) return;
+    e.preventDefault();
+    var c = cellAt(e);
+    painting = true; lastCx = -1; lastCy = -1;
+    paintVal = 1 - grid[c[1]][c[0]];
+    try { boardEl.setPointerCapture(e.pointerId); } catch (err) {}
+    paintTo(c[0], c[1]);
+  });
+  boardEl.addEventListener("pointermove", function (e) { if (painting) { var c = cellAt(e); paintTo(c[0], c[1]); } });
+  function stop() { painting = false; lastCx = -1; lastCy = -1; }
+  boardEl.addEventListener("pointerup", stop);
+  boardEl.addEventListener("pointercancel", stop);
+  boardEl.addEventListener("lostpointercapture", stop);
+
+  // ---------- 見本ボタン ----------
+  var presetEl = document.getElementById("presets");
+  [["ex13", "例題13の図"], ["kakunin10", "確認問題10の図"], ["checker", "市松模様"],
+   ["stripes", "横じま"], ["allA", "全部A"], ["clear", "全部消す"]].forEach(function (p) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = p[1];
+    b.addEventListener("click", function () {
+      grid = PRESETS[p[0]].map(function (r) { return r.slice(); });
+      currentPreset = p[0];
+      render();
+    });
+    b.setAttribute("aria-pressed", "false");
+    presetBtns[p[0]] = b;
+    presetEl.appendChild(b);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
